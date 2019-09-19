@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>T1013 - BRLA by Backroom Aisle Sheets</title>
+    <link rel="icon" href="/favicon.ico" />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.5.3/jspdf.debug.js" integrity="sha384-NaWTHo/8YCBYJ59830LTz/P4aQZK1sS0SneOgAvhsIl3zBu8r9RevNg5lHCHAuQ/" crossorigin="anonymous"></script>
+	<script type="text/javascript">
+	window.addEventListener("DOMContentLoaded", function() {
+		var help = [
+
+			"Baffles happen when you scan product\nthat isn't located in the location you're\npulling from.\n\nGhosts represent product that was\nsupposed to be in a location, but you\nweren't able to find.",
+
+			"Each location in the backroom has a\ngrouping. This can be openstock, lower\ncasepack, or upper casepack.\nThe grouping determines how much\nproduct gets pulled in your Move batches.\nYou can group locations using Backroom\nLocation Management via myWork.",
+
+			"Locations grouped as \"openstock\" will\nonly have you pull as much product is\nneeded.\nLocations grouped as \"casepack\" will\nhave you pull the amount marked on the\ncasepack for however many casepacks\nare needed.",
+
+			"To drop a One for One batch, scan the\nproduct from the fillgroup you wish to pull,\nclick on EXF, then \"Fill \[fillgroup\]\" and\nselect One for One.\n\nOne for Ones will often replace autofills\nfor their fillgroup when dropped",
+
+			"Auditing locations is a reliable way to\nimprove Backroom Location Accuracy.\n\nSimply load up the Audit app on your\nZebra, scan a backroom location, and\nscan product in said location to update\ncounts.",
+
+			"When backstocking, make sure to pay\nattention to fillgroups. Each aisle in the\nbackroom has a designated fillgroup, or\ntwo, marked on the end of the aisle.\n\nOnly locate product from those fillgroups\nin their respective aisles.",
+
+			"It's always a good idea to make sure the\npick label is facing outward when back-\nstocking casepacks.\n\nThe label with the product barcode can be\npeeled off for this reason, allowing\nyou to place it wherever convenient.",
+
+			"About to clock out for the day? Try to\nspend a minute or two cleaning up the\narea around your aisle.\nKeeping the backroom clean not only\nmakes it easier to move around in, but\nhelps keep everyone safe from potential\nhazards.",
+
+            "When pulling a product for a guest, make\nsure to take that product out of location\nwith myWork.\nJust scan the product, tap the name, hit\n\"Take\", and scan one of the locations\nlisted, then enter the quantity you're\ntaking.",
+
+            "SFQ stands for Salesfloor Quantity, the\namount of product that is on the floor.\nSFC stands for Salesfloor Capacity, the\namount of product that will fit in a\nlocation.\nOH stands for On Hand, the amount of\nproduct we have in store.",
+
+            "Code Green is for an injury to a guest or\nTeam Member.\nCode Yellow is for a missing child.\nCode Red is for a fire.\nAll codes are announced over walkie\nthree times, along with either a location\nor description.",
+
+            "Help ensure that exit routes are\nunobstructed such as by materials or\nequipment.\nIt is illegal to block a fire exit, even for just\na short period of time.\nNo pallets, vehicles, freight, or other\nsuch things may be placed in a fire aisle.",
+
+		], len = help.length - 1, step = - 1, date;
+		document.brla.import.addEventListener("change", function() {
+			let reader = new FileReader();
+			reader.addEventListener("load", handleCSV.bind(reader)), reader.readAsText(this.files[0]);
+		});
+		function handleCSV() {
+			let list = { "Green": [], "Yellow": [], "Red": [] }, temp = {}, result = this.result, value;
+			const regex = /\"(\d{2}\w\d{3})\",\"(\-?\d{2,3}\.\d{2})\%\",\"(\d+)\",\"(\d+)\",\"(\d+)\",\"(\d+)\"/gm;
+			date = /Begin:\s(\d{4}\-\d{2}\-\d{2})\nEnd:\s(\d{4}\-\d{2}\-\d{2})/gm.exec(result);
+			if(/Pattern:\sT1013/g.test(result))
+				while(value = regex.exec(result)) {
+					let int = Math.floor(value[2]), br = value[1].substring(0, 3), backroom = br + " Backroom", steel = br + " Steel";
+			    	if((br == "01B" || br == "02B" || br == "01E") && value[1].charAt(3) != "1")
+						list[int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
+				    else if(br == "01B" || br == "02B")
+				    	temp[steel] = Array.from(temp[steel] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
+					temp[backroom] = Array.from(temp[backroom] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
+				}
+			else
+				while(value = regex.exec(result)) {
+					let int = Math.floor(value[2]), backroom = value[1].substring(0, 3) + " Backroom";
+					list[int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
+					temp[backroom] = Array.from(temp[backroom] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
+				}
+		   	for(let [key, val] of Object.entries(temp)) {
+				let int = ((1 - (val[1] / val[0])) * 100).toFixed(2);
+				list[int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push([key, int, ...val]);
+			}
+			for(let [key, val] of Object.entries(list)) {
+				let pdf = new jsPDF({ format: "letter", orientation: "l" });
+				val.forEach(setupPDF.bind(pdf)), pdf.deletePage(1).save(key + " BRLA Sheets.pdf");
+			}
+		}
+		function setupPDF(val) {
+			this.addPage("letter", "l").setFontSize("12").text(val[0], 10, 207).text(date[1] + " to " + date[2], 219, 207);
+			this.rect(13, 13, 254, 85).setFontSize("144").text(val[1] + "%", 145, 73, null, null, "center");
+			this.setFontSize("48").text("Scans: " + val[2], 13, 130).text("Errors: " + val[3], 13, 150);
+			this.roundedRect(115, 115, 152, 72, 5, 5).setFontSize("22").text(help[step = step < len ? step + 1 : 0], 120, 125);
+			if(val[4] > 0)
+				this.setFontSize("36").text("- " + val[4] + " baffle" + (val[4] == 1 ? "" : "s"), 15, 170).text("- " + val[5] + " ghost" + (val[5] == 1 ? "" : "s"), 15, 185);
+		}
+	});
+	</script>
+</head>
+<body>
+	<h2>BRLA by Backroom Aisle Sheets</h2>
+	<form name="brla">
+		<ol>
+			<li>Head to <a href="https://greenfield.target.com/card/28393" target="_blank">BRLA by Backroom Aisle</a></li>
+			<li>Click "Filter By" and filter by your Store</li>
+			<li>(Optional) You may also filter by Backroom and Backroom Aisle to show only those you wish to print</li>
+			<li>Click on the three vertical dots near the upper-right corner and select "Export to CSV"</li>
+			<li>
+				<label>Click here to select the exported CSV
+					<input name="import" type="file" style="display: none" />
+				</label>
+			</li>
+		</ol>
+	</form>
+</body>
+</html>
