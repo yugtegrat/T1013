@@ -1,9 +1,25 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>T1013 - BRLA by Backroom Aisle Sheets</title>
-    <link rel="icon" href="/favicon.ico" />
+	<meta charset="utf-8">
+	<title>T1013 - BRLA by Backroom Aisle Sheets</title>
+	<style type="text/css">
+		label {
+			cursor: pointer;
+		}
+		ul {
+			list-style-type: none;
+		}
+		ul li {
+			margin-left: -20px;
+		}
+		li {
+			padding: 2px;
+		}
+		.export, .example {
+			border: 1px solid black; padding: 2px
+		}
+	</style>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.5.3/jspdf.debug.js" integrity="sha384-NaWTHo/8YCBYJ59830LTz/P4aQZK1sS0SneOgAvhsIl3zBu8r9RevNg5lHCHAuQ/" crossorigin="anonymous"></script>
 	<script type="text/javascript">
 	window.addEventListener("DOMContentLoaded", function() {
@@ -25,42 +41,43 @@
 
 			"About to clock out for the day? Try to\nspend a minute or two cleaning up the\narea around your aisle.\nKeeping the backroom clean not only\nmakes it easier to move around in, but\nhelps keep everyone safe from potential\nhazards.",
 
-            "When pulling a product for a guest, make\nsure to take that product out of location\nwith myWork.\nJust scan the product, tap the name, hit\n\"Take\", and scan one of the locations\nlisted, then enter the quantity you're\ntaking.",
+			"When pulling a product for a guest, make\nsure to take that product out of location\nwith myWork.\nJust scan the product, tap the name, hit\n\"Take\", and scan one of the locations\nlisted, then enter the quantity you're\ntaking.",
 
-            "SFQ stands for Salesfloor Quantity, the\namount of product that is on the floor.\nSFC stands for Salesfloor Capacity, the\namount of product that will fit in a\nlocation.\nOH stands for On Hand, the amount of\nproduct we have in store.",
+			"SFQ stands for Salesfloor Quantity, the\namount of product that is on the floor.\nSFC stands for Salesfloor Capacity, the\namount of product that will fit in a\nlocation.\nOH stands for On Hand, the amount of\nproduct we have in store.",
 
-            "Code Green is for an injury to a guest or\nTeam Member.\nCode Yellow is for a missing child.\nCode Red is for a fire.\nAll codes are announced over walkie\nthree times, along with either a location\nor description.",
+			"Code Green is for an injury to a guest or\nTeam Member.\nCode Yellow is for a missing child.\nCode Red is for a fire.\nAll codes are announced over walkie\nthree times, along with either a location\nor description.",
 
-            "Help ensure that exit routes are\nunobstructed such as by materials or\nequipment.\nIt is illegal to block a fire exit, even for just\na short period of time.\nNo pallets, vehicles, freight, or other\nsuch things may be placed in a fire aisle.",
+			"Help ensure that exit routes are\nunobstructed such as by materials or\nequipment.\nIt is illegal to block a fire exit, even for just\na short period of time.\nNo pallets, vehicles, freight, or other\nsuch things may be placed in a fire aisle.",
 
 		], len = help.length - 1, step = - 1, date;
 		document.brla.import.addEventListener("change", function() {
 			let reader = new FileReader();
-			reader.addEventListener("load", handleCSV.bind(reader)), reader.readAsText(this.files[0]);
+			reader.addEventListener("load", handleCSV.bind(reader, ...document.brla.elements)), reader.readAsText(this.files[0]);
 		});
-		function handleCSV() {
-			let list = { "Green": [], "Yellow": [], "Red": [] }, temp = {}, result = this.result, value;
+		function handleCSV(br, mu) {
+			let list = mu.checked ? { "Green": [], "Yellow": [], "Red": [] } : { "All": [] }, temp = {}, result = this.result, value;
 			const regex = /\"(\d{2}\w\d{3})\",\"(\-?\d{2,3}\.\d{2})\%\",\"(\d+)\",\"(\d+)\",\"(\d+)\",\"(\d+)\"/gm;
 			date = /Begin:\s(\d{4}\-\d{2}\-\d{2})\nEnd:\s(\d{4}\-\d{2}\-\d{2})/gm.exec(result);
 			if(/Pattern:\sT1013/g.test(result))
 				while(value = regex.exec(result)) {
-					let int = Math.floor(value[2]), br = value[1].substring(0, 3), backroom = br + " Backroom", steel = br + " Steel";
-			    	if((br == "01B" || br == "02B" || br == "01E") && value[1].charAt(3) != "1")
-						list[int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
-				    else if(br == "01B" || br == "02B")
-				    	temp[steel] = Array.from(temp[steel] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
+					let int = Math.floor(value[2]), id = value[1].substring(0, 3), backroom = id + " Backroom", steel = id + " Steel";
+					if(!br.checked || ((id == "01B" || id == "02B" || id == "01E") && value[1].charAt(3) != "1"))
+						list[!mu.checked ? "All" : int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
+					if(id != "99B" && value[1].charAt(3) == "1")
+						temp[steel] = Array.from(temp[steel] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
 					temp[backroom] = Array.from(temp[backroom] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
 				}
 			else
 				while(value = regex.exec(result)) {
 					let int = Math.floor(value[2]), backroom = value[1].substring(0, 3) + " Backroom";
-					list[int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
+					list[!mu.checked ? "All" : int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
 					temp[backroom] = Array.from(temp[backroom] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
 				}
-		   	for(let [key, val] of Object.entries(temp)) {
-				let int = ((1 - (val[1] / val[0])) * 100).toFixed(2);
-				list[int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push([key, int, ...val]);
-			}
+			if(br.checked)
+				for(let [key, val] of Object.entries(temp)) {
+					let int = ((1 - (val[1] / val[0])) * 100).toFixed(2);
+					list[!mu.checked ? "All" : int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push([key, int, ...val]);
+				}
 			for(let [key, val] of Object.entries(list)) {
 				let pdf = new jsPDF({ format: "letter", orientation: "l" });
 				val.forEach(setupPDF.bind(pdf)), pdf.deletePage(1).save(key + " BRLA Sheets.pdf");
@@ -79,14 +96,27 @@
 </head>
 <body>
 	<h2>BRLA by Backroom Aisle Sheets</h2>
+	<img class="example" src="https://www.t1013.net/brla/example.png" />
 	<form name="brla">
-		<ol>
-			<li>Head to <a href="https://greenfield.target.com/card/28393" target="_blank">BRLA by Backroom Aisle</a></li>
-			<li>Click "Filter By" and filter by your Store</li>
-			<li>(Optional) You may also filter by Backroom and Backroom Aisle to show only those you wish to print</li>
-			<li>Click on the three vertical dots near the upper-right corner and select "Export to CSV"</li>
+		This tool will create a sheet for each backroom aisle in your selected store.
+		<br />
+		<h3>Available options:</h3>
+		<ul>
 			<li>
-				<label>Click here to select the exported CSV
+				<label><input type="checkbox" name="backroom" checked /> Create a BRLA sheet for each backroom</label>
+			</li>
+			<li>
+				<label><input type="checkbox" name="multiple" checked /> Create a PDF for each tier of BRLA (green, yellow, red)</label>
+			</li>
+		</ul>
+		<h3>Complete the following steps:</h3>
+		<ol>
+			<li>Head to <strong><a href="https://greenfield.target.com/card/28393" target="_blank">BRLA by Backroom Aisle</a></strong></li>
+			<li>Click <strong>Filter By</strong> and filter by your Store</li>
+			<li>(Optional) You may also filter by Backroom and Backroom Aisle to show only those you wish to print</li>
+			<li>Click on the three vertical dots near the upper-right corner and select <strong>Export to CSV</strong></li>
+			<li>
+				<label class="export">Click here to select the exported CSV
 					<input name="import" type="file" style="display: none" />
 				</label>
 			</li>
