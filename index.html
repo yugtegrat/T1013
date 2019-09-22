@@ -20,7 +20,7 @@
 			border: 1px solid black; padding: 2px
 		}
 	</style>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.5.3/jspdf.debug.js" integrity="sha384-NaWTHo/8YCBYJ59830LTz/P4aQZK1sS0SneOgAvhsIl3zBu8r9RevNg5lHCHAuQ/" crossorigin="anonymous"></script>
+	<script type="text/javascript" src="jspdf.min.js"></script>
 	<script type="text/javascript">
 	window.addEventListener("DOMContentLoaded", function() {
 		var help = [
@@ -50,53 +50,67 @@
 			"Help ensure that exit routes are\nunobstructed such as by materials or\nequipment.\nIt is illegal to block a fire exit, even for just\na short period of time.\nNo pallets, vehicles, freight, or other\nsuch things may be placed in a fire aisle.",
 
 		], len = help.length - 1, step = - 1, date;
+		let week_start = /(\d{4}\-\d{2}\-\d{2})_ghost\"$/gm, week_end = /End:\s(\d{4}\-\d{2}\-\d{2})/gm;
 		document.brla.import.addEventListener("change", function() {
 			let reader = new FileReader();
 			reader.addEventListener("load", handleCSV.bind(reader, ...document.brla.elements)), reader.readAsText(this.files[0]);
 		});
 		function handleCSV(br, mu) {
-			let list = mu.checked ? { "Green": [], "Yellow": [], "Red": [] } : { "All": [] }, temp = {}, result = this.result, value;
-			const regex = /\"(\d{2}\w\d{3})\",\"(\-?\d{2,3}\.\d{2})\%\",\"(\d+)\",\"(\d+)\",\"(\d+)\",\"(\d+)\"/gm;
-			date = /Begin:\s(\d{4}\-\d{2}\-\d{2})\nEnd:\s(\d{4}\-\d{2}\-\d{2})/gm.exec(result);
+			let list = mu.checked ? { "Green": [], "Yellow": [], "Red": [] } : { "All": [] }, temp = {}, result = this.result.split(/\n/gm);
+			week_start = week_start.exec(this.result)[1], week_end = week_end.exec(this.result)[1];
 			if(/Pattern:\sT1013/g.test(result))
-				while(value = regex.exec(result)) {
-					let int = Math.floor(value[2]), id = value[1].substring(0, 3), backroom = id + " Backroom", steel = id + " Steel";
-					if(!br.checked || ((id == "01B" || id == "02B" || id == "01E") && value[1].charAt(3) != "1"))
-						list[!mu.checked ? "All" : int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
-					if(id != "99B" && value[1].charAt(3) == "1")
-						temp[steel] = Array.from(temp[steel] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
-					temp[backroom] = Array.from(temp[backroom] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
+				for(let n = 1, len = result.length; n < len; n ++) {
+					let arr = result[n].replace(/\"/g, "").split(",");
+					if(arr.length != 16) continue;
+					let int = arr[11] || 100, id = arr[0].substring(0, 3), backroom = id + " Backroom", steel = id + " Steel";
+					if(!br.checked || ((id == "01B" || id == "02B" || id == "01E") && arr[0].charAt(3) != "1"))
+						list[!mu.checked ? "All" : int < 95 ? "Red" : int < 97 ? "Yellow" : "Green"].push(arr);
+					if(id != "99B" && arr[0].charAt(3) == "1")
+						temp[steel] = Array.from(temp[steel] || [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], (v, i) => v + Math.round(arr[i + 1]));
+					temp[backroom] = Array.from(temp[backroom] || [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], (v, i) => v + Math.round(arr[i + 1]));
 				}
 			else
-				while(value = regex.exec(result)) {
-					let int = Math.floor(value[2]), backroom = value[1].substring(0, 3) + " Backroom";
-					list[!mu.checked ? "All" : int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push(value.slice(1));
-					temp[backroom] = Array.from(temp[backroom] || [0, 0, 0, 0], (v, i) => v + Math.round(value[i + 3]));
+				for(let n = 1, len = result.length; n < len; n ++) {
+					let arr = result[n].replace(/\"/g, "").split(",");
+					if(arr.length != 16) continue;
+					let int = arr[11] || 100, id = arr[0].substring(0, 3), backroom = id + " Backroom";
+					list[!mu.checked ? "All" : int < 95 ? "Red" : int < 97 ? "Yellow" : "Green"].push(arr);
+					temp[backroom] = Array.from(temp[backroom] || [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], (v, i) => v + Math.round(arr[i + 1]));
 				}
 			if(br.checked)
 				for(let [key, val] of Object.entries(temp)) {
-					let int = ((1 - (val[1] / val[0])) * 100).toFixed(2);
-					list[!mu.checked ? "All" : int >= 97? "Green" : int >= 95? "Yellow" : "Red"].push([key, int, ...val]);
+					val = val.map(function(v, i, a) {
+						if(i % 5 == 0)
+							return (1 - (a[i + 2] / a[i + 1])) * 100;
+						return v;
+					});
+					let int = val[10];
+					list[!mu.checked ? "All" : int < 95 ? "Red" : int < 97 ? "Yellow" : "Green"].push([key, ...val]);
 				}
 			for(let [key, val] of Object.entries(list)) {
 				let pdf = new jsPDF({ format: "letter", orientation: "l" });
-				val.forEach(setupPDF.bind(pdf)), pdf.deletePage(1).save(key + " BRLA Sheets.pdf");
+				val.forEach(setupPDF.bind(pdf)), pdf.deletePage(1).save(key + " BRLA Sheets");
 			}
 		}
 		function setupPDF(val) {
-			this.addPage("letter", "l").setFontSize("12").text(val[0], 10, 207).text(date[1] + " to " + date[2], 219, 207);
-			this.rect(13, 13, 254, 85).setFontSize("144").text(val[1] + "%", 145, 73, null, null, "center");
-			this.setFontSize("48").text("Scans: " + val[2], 13, 130).text("Errors: " + val[3], 13, 150);
+			let id = val[0];
+			val = val.slice(1).map(function(v, i) { (i % 5 == 0) && !v && (v = 100); return +v; });
+			if(!val[10]) val[10] = 100;
+			this.addPage("letter", "l").setFontSize("12").text(id, 10, 207).text(week_start + " to " + week_end, 219, 207);
+			this.rect(13, 13, 254, 85).setFontSize("144").text(val[10].toFixed(2) + "%", 140, 73, null, null, "center");
+			this.setFontSize("22").text("2 Weeks Ago: " + val[5].toFixed(2) + "% / 3 Weeks Ago: " + val[0].toFixed(2) + "%", 140, 25, null, null, "center");
+			this.setFontSize("40").text("Scans: " + val[11], 20, 130).text("Errors: " + val[12], 20, 150);
+			this.text(val[11] > val[6] ? "+" : val[11] < val[6] ? "-": "", 15, 130, null, null, "center"), this.text(val[12] > val[7] ? "+" : val[12] < val[7] ? "-" : "", 15, 150, null, null, "center");
 			this.roundedRect(115, 115, 152, 72, 5, 5).setFontSize("22").text(help[step = step < len ? step + 1 : 0], 120, 125);
-			if(val[4] > 0)
-				this.setFontSize("36").text("- " + val[4] + " baffle" + (val[4] == 1 ? "" : "s"), 15, 170).text("- " + val[5] + " ghost" + (val[5] == 1 ? "" : "s"), 15, 185);
+			if(val[12] > 0)
+				this.setFontSize("36").text("› " + val[13] + " baffle" + (val[13] == 1 ? "" : "s"), 20, 170).text("› " + val[14] + " ghost" + (val[14] == 1 ? "" : "s"), 20, 185);
 		}
 	});
 	</script>
 </head>
 <body>
 	<h2>BRLA by Backroom Aisle Sheets</h2>
-	<img class="example" src="https://www.t1013.net/brla/example.png" />
+	<img class="example" src="example2.png" />
 	<form name="brla">
 		This tool will create a sheet for each backroom aisle in your selected store.
 		<br />
@@ -111,7 +125,7 @@
 		</ul>
 		<h3>Complete the following steps:</h3>
 		<ol>
-			<li>Head to <strong><a href="https://greenfield.target.com/card/28393" target="_blank">BRLA by Backroom Aisle</a></strong></li>
+			<li>Head to <strong><a href="https://greenfield.target.com/card/30782" target="_blank">BRLA by Backroom Aisle</a></strong></li>
 			<li>Click <strong>Filter By</strong> and filter by your Store</li>
 			<li>(Optional) You may also filter by Backroom and Backroom Aisle to show only those you wish to print</li>
 			<li>Click on the three vertical dots near the upper-right corner and select <strong>Export to CSV</strong></li>
